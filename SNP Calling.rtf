@@ -1,0 +1,65 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww28600\viewh15240\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 #!/bin/bash \
+\
+#SBATCH --mail-type=fail \
+#SBATCH --job-name=\'93bwa\'94 \
+#SBATCH --nodes=1\
+#SBATCH --cpus\'97per-task=8\
+#SBATCH --time=36:00:00\
+#SBATCH --mem=25G\
+#SBATCH --partition=pcoursea\
+\
+XX=$1\
+\
+source /data/users/lfalquet/SBC07107_24/scripts/module.sh \
+\
+#create and go to the TP directory\
+mkdir /data/users/atouihri/bwa$\{X X\} \
+cd /data/users/atouihri/bwa$\{XX\}\
+\
+#link the reference genome and the reads locally \
+ln -s /data/users/lfalquet/SBC07107_24/YEAST/reference/R64-1-1.112.fa R64-1-1.112.fa \
+ln -s /data/users/lfalquet/SBC07107_24/YEAST/reference/R64-1-1.112.gtf R64-1-1.112.gtf \
+ln -s /data/users/$\{USER\}/bwa*/*.bam . \
+\
+\
+# call SNPs for each strain (each bam file) and index the vcf.gz \
+\
+bcftools mpileup -Ou --threads 8 -f R64-1-1.112.fa $\{XX\}.bam | bcftools call -vc -Oz --threads 8 -o $\{XX\}.vcf.gz \
+tabix $\{XX\}.vcf.gz \
+\
+\
+#ideally should be done for all mutants together\'85\
+#bcftools mpileup -Ou --threads 8 -f R64-1-1.112.fa $\{LIST_OF_BAM_FILES\} | bcftools call -vc -Ov --threads 8 -o \{XX\}.vcf \
+\
+#or much faster merged with bcftools once you have all vcf files and their indexes \
+bcftools merge -O v `ls *.vcf.gz` > $\{XX\}all.vcf\
+\
+#annotate vcf file using snpEff \
+#first download and install snpEff locally \
+#wget https://snpeff.blob.core.windows.net/versions/snpEff_latest_core.zip \
+\
+#unzip snpEff_latest_core.zip \
+SNPEFF=/data/users/lfalquet/SBC07107_24/scripts/snpEff \
+\
+# get the database for the yeast genome (warning in snpEff 99=104). \
+#java -Xmx4g -jar $\{SNPEFF\}/snpEff.jar download R64-1-1.105 \
+\
+#annotate the VCF file\
+ java -Xmx20g -jar $\{SNPEFF\}snpEff.jar -no-upstream -no-downstream R64-1-1.105 $\{XX\}all.vcf > $\{XX\}all_annot.vcf \
+\
+#remove synonymous and intergenic variants\
+ cat $\{XX\}all_annot.vcf | java -jar $\{SNPEFF\}/SnpSift.jar filter "(( ANN[*].EFFECT != 'synonymous_variant') & ( ANN[*].EFFECT != 'intergenic_region'))"   > $\{XX\}all_coding.vcf\
+\
+# keep only variants that are found in less than 3 strains \
+cat $\{XX\}all_coding.vcf | java -jar $\{SNPEFF\}/SnpSift.jar filter  "((countVariant() < 3))" > $\{XX\}all_coding_max2.vcf \
+\
+# Tip: modify before importing into excel\
+perl -pe 's/;ANN=/;\\tANN=/g' $\{XX\}all_coding_max2.vcf > $\{XX\}all_coding_max2_forexcel.vcf \
+perl -i -pe 's/FORMAT\\t/FORMAT\\t\\t/' $\{XX\}all_coding_max2_forexcel.vcf}

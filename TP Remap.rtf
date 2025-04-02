@@ -1,3 +1,15 @@
+#!/bin/bash 
+
+#SBATCH --mail-type=fail 
+#SBATCH --job-name=“tp_remap” 
+#SBATCH --nodes=1
+#SBATCH --cpus—per-task=8
+#SBATCH --time=36:00:00
+#SBATCH --mem=25G
+#SBATCH --partition=pcoursea
+
+XX=$1
+
 #login to the main server at unibe 
 ssh atouihri@login8.hpc.binf.unibe.ch 
 
